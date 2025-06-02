@@ -1,0 +1,2 @@
+-- This migration is intentionally empty as we've consolidated the studio creation
+-- into a single migration for better consistency

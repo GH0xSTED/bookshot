@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* FullCalendar Custom Styles */
+.fc {
+  @apply font-sans;
+}
+
+.fc .fc-toolbar {
+  @apply flex-wrap gap-4 mb-4;
+}
+
+.fc .fc-toolbar-title {
+  @apply text-xl font-bold text-gray-900;
+}
+
+.fc .fc-button {
+  @apply bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500;
+}
+
+.fc .fc-button-primary {
+  @apply bg-primary-600 border-transparent text-white hover:bg-primary-700;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  @apply bg-primary-700 border-transparent;
+}
+
+.fc .fc-daygrid-day.fc-day-today,
+.fc .fc-timegrid-col.fc-day-today {
+  @apply bg-primary-50;
+}
+
+.fc .fc-event {
+  @apply rounded-md border-none shadow-sm cursor-pointer transition-transform hover:scale-[1.02];
+}
+
+.fc .fc-timegrid-slot {
+  @apply h-12;
+}
+
+.fc .fc-timegrid-slot-label {
+  @apply text-sm text-gray-500;
+}
+
+.fc .fc-resource-timeline-divider {
+  @apply border-gray-200;
+}
+
+.fc .fc-resource-area {
+  @apply bg-gray-50;
+}
+
+.fc .fc-resource-area .fc-resource-cell {
+  @apply p-2 text-sm font-medium text-gray-700;
+}
