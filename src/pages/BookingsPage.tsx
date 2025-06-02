@@ -1,53 +1,107 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-
-// Mock data for calendar events
-const initialEvents = [
-  {
-    id: '1',
-    title: 'Product Shoot - Studio A',
-    start: '2025-05-15T10:00:00',
-    end: '2025-05-15T12:00:00',
-    resourceId: 'studio-a',
-    backgroundColor: '#4F46E5',
-    editable: true,
-  },
-  {
-    id: '2',
-    title: 'Portrait Session - Studio B',
-    start: '2025-05-15T14:00:00',
-    end: '2025-05-15T16:00:00',
-    resourceId: 'studio-b',
-    backgroundColor: '#0891B2',
-    editable: true,
-  },
-  {
-    id: '3',
-    title: 'Fashion Shoot - Studio C',
-    start: '2025-05-16T09:00:00',
-    end: '2025-05-16T13:00:00',
-    resourceId: 'studio-c',
-    backgroundColor: '#B45309',
-    editable: true,
-  },
-];
-
-const resources = [
-  { id: 'studio-a', title: 'Studio A' },
-  { id: 'studio-b', title: 'Studio B' },
-  { id: 'studio-c', title: 'Studio C' },
-];
+import { supabase } from '../lib/supabase';
+import { useToast } from '../hooks/use-toast';
 
 export function BookingsPage() {
   const { user } = useAuth();
-  const [events, setEvents] = useState(initialEvents);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [events, setEvents] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [studios, setStudios] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    if (!user) return;
+
+    async function loadBookingsAndStudios() {
+      try {
+        // First load all studios to have their information available
+        const { data: studiosData, error: studiosError } = await supabase
+          .from('studios')
+          .select('*');
+
+        if (studiosError) throw studiosError;
+
+        const studiosMap = studiosData.reduce((acc: Record<string, any>, studio: any) => {
+          acc[studio.id] = studio;
+          return acc;
+        }, {});
+        setStudios(studiosMap);
+
+        // Then load user's bookings
+        const { data: bookings, error: bookingsError } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('start_time', { ascending: true });
+
+        if (bookingsError) throw bookingsError;
+
+        const formattedEvents = bookings.map((booking: any) => ({
+          id: booking.id,
+          title: booking.title || studiosMap[booking.studio_id]?.name || 'Booking',
+          start: booking.start_time,
+          end: booking.end_time,
+          backgroundColor: '#4F46E5',
+          borderColor: '#4F46E5',
+          extendedProps: {
+            studioId: booking.studio_id,
+            studioName: studiosMap[booking.studio_id]?.name,
+            description: booking.description,
+            pricePerHour: studiosMap[booking.studio_id]?.price_per_hour
+          }
+        }));
+
+        setEvents(formattedEvents);
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load bookings: " + error.message,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadBookingsAndStudios();
+  }, [user]);
+
+  const handleEventClick = (clickInfo: any) => {
+    const { event } = clickInfo;
+    const studio = studios[event.extendedProps.studioId];
+    
+    if (!studio) return;
+
+    const startTime = format(new Date(event.start), 'MMM d, yyyy h:mm a');
+    const endTime = format(new Date(event.end), 'h:mm a');
+    const duration = (event.end.getTime() - event.start.getTime()) / (1000 * 60 * 60);
+    const total = duration * event.extendedProps.pricePerHour;
+
+    toast({
+      title: event.title,
+      description: (
+        <div className="mt-2 space-y-2">
+          <p><strong>Studio:</strong> {studio.name}</p>
+          <p><strong>Time:</strong> {startTime} - {endTime}</p>
+          <p><strong>Duration:</strong> {duration} hours</p>
+          <p><strong>Total:</strong> ${total}</p>
+          {event.extendedProps.description && (
+            <p><strong>Notes:</strong> {event.extendedProps.description}</p>
+          )}
+        </div>
+      ),
+    });
+  };
 
   if (!user) {
     return (
@@ -61,46 +115,14 @@ export function BookingsPage() {
     );
   }
 
-  const handleEventDrop = (info: any) => {
-    const { event } = info;
-    setEvents(prevEvents => {
-      const newEvents = prevEvents.filter(e => e.id !== event.id);
-      return [...newEvents, {
-        id: event.id,
-        title: event.title,
-        start: event.start.toISOString(),
-        end: event.end.toISOString(),
-        resourceId: event.resourceId,
-        backgroundColor: event.backgroundColor,
-        editable: event.editable,
-      }];
-    });
-  };
-
-  const handleEventResize = (info: any) => {
-    const { event } = info;
-    setEvents(prevEvents => {
-      const newEvents = prevEvents.filter(e => e.id !== event.id);
-      return [...newEvents, {
-        id: event.id,
-        title: event.title,
-        start: event.start.toISOString(),
-        end: event.end.toISOString(),
-        resourceId: event.resourceId,
-        backgroundColor: event.backgroundColor,
-        editable: event.editable,
-      }];
-    });
-  };
-
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="md:flex md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900">Studio Bookings</h1>
+            <h1 className="text-3xl font-extrabold text-gray-900">My Bookings</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Drag and drop to reschedule your bookings
+              View and manage all your studio bookings in one place
             </p>
           </div>
           <div className="mt-4 md:mt-0">
@@ -112,30 +134,45 @@ export function BookingsPage() {
 
         <Card className="overflow-hidden">
           <div className="p-4">
-            <FullCalendar
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="timeGridWeek"
-              headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay',
-              }}
-              resources={resources}
-              events={events}
-              editable={true}
-              droppable={true}
-              eventDrop={handleEventDrop}
-              eventResize={handleEventResize}
-              slotMinTime="08:00:00"
-              slotMaxTime="20:00:00"
-              allDaySlot={false}
-              slotDuration="00:30:00"
-              height="auto"
-              resourceAreaWidth="150px"
-              resourceGroupField="building"
-              resourceAreaHeaderContent="Studios"
-              className="fc-theme-standard"
-            />
+            {isLoading ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : events.length > 0 ? (
+              <FullCalendar
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                initialView="timeGridWeek"
+                headerToolbar={{
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: 'dayGridMonth,timeGridWeek,timeGridDay',
+                }}
+                events={events}
+                eventClick={handleEventClick}
+                slotMinTime="08:00:00"
+                slotMaxTime="20:00:00"
+                allDaySlot={false}
+                height="auto"
+                eventContent={(eventInfo) => {
+                  return (
+                    <div className="p-1">
+                      <div className="font-semibold">{eventInfo.event.title}</div>
+                      <div className="text-xs">
+                        {eventInfo.event.extendedProps.studioName}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+            ) : (
+              <div className="text-center py-12">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings found</h3>
+                <p className="text-gray-500 mb-4">You haven't made any bookings yet.</p>
+                <Link to="/studios">
+                  <Button>Browse Studios</Button>
+                </Link>
+              </div>
+            )}
           </div>
         </Card>
       </div>

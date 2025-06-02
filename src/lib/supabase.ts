@@ -37,8 +37,8 @@ export async function getBookings(studioId?: string) {
     description: booking.description,
     start: booking.start_time,
     end: booking.end_time,
-    backgroundColor: booking.user_id === user?.id ? '#4F46E5' : '#EF4444',
-    borderColor: booking.user_id === user?.id ? '#4F46E5' : '#EF4444',
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
     editable: booking.user_id === user?.id,
     extendedProps: {
       userId: booking.user_id,
@@ -83,7 +83,6 @@ export async function updateBooking(bookingId: string, updates: {
   title?: string;
   description?: string;
 }) {
-  // First check for overlapping bookings
   const { data: booking, error: getError } = await supabase
     .from('bookings')
     .select('*')
@@ -91,20 +90,6 @@ export async function updateBooking(bookingId: string, updates: {
     .single();
 
   if (getError) throw getError;
-
-  if (updates.startTime && updates.endTime) {
-    const { data: existingBookings, error: checkError } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('studio_id', booking.studio_id)
-      .neq('id', bookingId)
-      .or(`start_time.lte.${updates.endTime},end_time.gte.${updates.startTime}`);
-
-    if (checkError) throw checkError;
-    if (existingBookings && existingBookings.length > 0) {
-      throw new Error('This time slot overlaps with an existing booking');
-    }
-  }
 
   const { data, error } = await supabase
     .from('bookings')
